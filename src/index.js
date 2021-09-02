@@ -1,21 +1,18 @@
 console.log("started");
 
-
 require("dotenv").config();
-const path = require("path");
 const express = require("express");
 const ngrok = require("./getPublicUrls");
 const winston = require("winston");
 
 const ViberBot = require("viber-bot").Bot;
 const BotEvents = require("viber-bot").Events;
-const { response } = require("express");
 
 const app = express();
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_KEY;
-const IS_PRODUCTION = process.env.IS_PRODUCTION;
+const IS_PRODUCTION = process.env.IS_PRODUCTION === "true";
 
 const VIBER_BOT_ROUTE = "/viber";
 
@@ -44,6 +41,7 @@ app.get("/", (req, res) => {
 
 app.listen(PORT, () => {
   (async () => {
+		console.log("is prod", IS_PRODUCTION);
     if (IS_PRODUCTION) {
       return `https://${process.env.VERCEL_URL}${VIBER_BOT_ROUTE}`;
     } else {
