@@ -3,10 +3,10 @@
 	"builds": [
 			{
 					"src": "src/index.js",
-					"use": "@now/node-server"
+					"use": "@vercel/node"
 			}
 	],
 	"routes": [
-			{ "src": "/viber", "dest": "src/index.js" }
+			{ "src": "/.*", "dest": "src/index.js" }
 	]
 }

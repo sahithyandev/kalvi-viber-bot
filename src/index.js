@@ -9,6 +9,7 @@ const winston = require("winston");
 
 const ViberBot = require("viber-bot").Bot;
 const BotEvents = require("viber-bot").Events;
+const { response } = require("express");
 
 const app = express();
 
@@ -34,8 +35,12 @@ bot.on(BotEvents.MESSAGE_RECEIVED, (message, response) => {
   response.send(message);
 });
 
-app.use(express.static(path.join(__dirname, "public")));
 app.use(VIBER_BOT_ROUTE, bot.middleware());
+
+app.get("/", (req, res) => {
+	console.log("sss");
+	res.send("done");
+});
 
 app.listen(PORT, () => {
   (async () => {
