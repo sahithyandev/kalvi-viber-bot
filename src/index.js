@@ -43,7 +43,7 @@ app.listen(PORT, () => {
   (async () => {
 		console.log("is prod", IS_PRODUCTION);
     if (IS_PRODUCTION) {
-      return `https://${process.env.VERCEL_URL}${VIBER_BOT_ROUTE}`;
+      return `https://${process.env.HEROKU_APP_NAME}.herokuapp.com${VIBER_BOT_ROUTE}`;
     } else {
       const ngrokUrl = await ngrok.getPublicUrl();
       return `${ngrokUrl}${VIBER_BOT_ROUTE}`;
