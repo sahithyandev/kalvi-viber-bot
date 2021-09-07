@@ -23,6 +23,7 @@
     "@types/express": "^4.17.13",
     "@types/fs-extra": "^9.0.12",
     "@types/node": "^16.7.10",
+    "concurrently": "^6.2.1",
     "fs-extra": "^10.0.0",
     "rollup": "^2.56.3",
     "tslib": "^2.3.1",
