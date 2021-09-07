@@ -5,8 +5,10 @@
   "license": "MIT",
   "scripts": {
     "build": "rollup -c",
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "start": "node dist/index.js",
+    "dev:server": "nodemon dist/index.js",
+    "dev:build": "rollup -c -w",
+    "dev": "concurrently yarn:dev:build yarn:dev:server"
   },
   "dependencies": {
     "dotenv": "^10.0.0",

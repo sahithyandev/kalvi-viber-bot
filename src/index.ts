@@ -1,11 +1,12 @@
-// @ts-check
+import * as ngrok from "./getPublicUrls";
+import * as utils from "./utils";
+import * as helpers from "./helpers";
+import * as models from "./models";
 
 console.log("started");
 
-// @ts-ignore
 require("dotenv").config();
 const express = require("express");
-const ngrok = require("./getPublicUrls");
 const winston = require("winston");
 
 const viberBotPackage = require("viber-bot");
@@ -14,7 +15,6 @@ const BotEvents = viberBotPackage.Events;
 
 const app = express();
 const path = require("path");
-const { response } = require("express");
 app.use("/public", express.static(path.join(__dirname, "../public")));
 
 const PORT = process.env.PORT || 3000;
@@ -27,8 +27,7 @@ let hostUrl = "";
 const bot = new ViberBot({
 	logger: IS_PRODUCTION
 		? undefined
-		: // @ts-ignore
-		  new winston.createLogger({
+		: new winston.createLogger({
 				level: IS_PRODUCTION ? "info" : "debug",
 		  }),
 	authToken: API_KEY,
@@ -61,10 +60,6 @@ async function sendPdfMessage(filename = "quantum.pdf") {
 	);
 }
 
-const utils = require("./utils");
-const helpers = require("./helpers");
-const models = require("./models");
-
 const folderStructure = new models.FolderObj("public");
 console.log("folderStructure loaded");
 
@@ -92,28 +87,25 @@ bot.onTextMessage(/^!start$/i, (message, response) => {
 	]);
 });
 
-/**
- * @typedef ListenerObj
- * @property {RegExp} messageRoute
- * @property {(message, response, messageRegexMatched: RegExpMatchArray) => Promise<void>} messageListener
- */
+interface ListenerObj {
+	messageRoute: RegExp;
+	messageListener: (
+		message,
+		response,
+		messageRegexMatched: RegExpMatchArray
+	) => Promise<void>;
+}
 
-/**
- * @type ListenerObj[]
- */
-const listeners = [
+const listeners: ListenerObj[] = [
 	{
 		messageRoute: /!type (?<type>\w+)/i,
 		messageListener: async (message, response, messageRegexMatched) => {
 			const type = messageRegexMatched.groups.type;
 			if (type === "education") {
-				/**
-				 * @type models.FolderObj
-				 */
-				// @ts-ignore
-				const EDUCATION_FOLDER = folderStructure.content.find(
-					(entry) => entry.name === "education" && entry.type === "folder"
-				);
+				const EDUCATION_FOLDER = folderStructure.content.find((s) => {
+					return s.type === "folder" && s.name === "education";
+				}) as models.FolderObj;
+
 				const AVAILABLE_GRADES = EDUCATION_FOLDER.content
 					.filter((entry) => entry.type === "folder")
 					.map((folder) => {
@@ -144,7 +136,20 @@ const listeners = [
 		messageRoute: /!grade (?<grade>\d+)/i,
 		messageListener: async (message, response, messageRegexMatched) => {
 			const grade = parseInt(messageRegexMatched.groups.grade);
-			const subjects = helpers.getSubjects(grade);
+			const subjects = (() => {
+				const subjectFolders = folderStructure
+					.findSubfolder("education")
+					.findSubfolder(grade.toString())
+					.content.filter(
+						(entry) => entry.type === "folder"
+					) as models.FolderObj[];
+
+				return subjectFolders.map((subjectFolder) => {
+					return new models.Subject(subjectFolder.name);
+				});
+			})();
+
+			console.log(subjects);
 
 			response.send([
 				new viberBotPackage.Message.Text("Select a subject"),
@@ -214,7 +219,7 @@ app.listen(PORT, () => {
 		if (IS_PRODUCTION) {
 			return `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`;
 		} else {
-			const ngrokUrl = await ngrok.getPublicUrl();
+			const ngrokUrl = await ngrok.getPublicUrls();
 			return ngrokUrl;
 		}
 	})()
