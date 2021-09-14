@@ -18,3 +18,13 @@ export function range(start = 1, end = 10) {
 	}
 	return num;
 }
+
+/**
+ * @example dashedToNormal("dashed-to-normal") == "Dashed To Normal"
+ */
+export function dashedToNormal(str: string) {
+	return str
+		.split("-")
+		.map((word) => capitalize(word))
+		.join(" ");
+}

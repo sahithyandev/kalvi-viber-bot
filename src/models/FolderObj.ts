@@ -2,7 +2,6 @@ import FSEntry from "./FSEntry";
 import FileObj from "./FileObj";
 
 class FolderObj extends FSEntry {
-	type: "folder";
 	content: (FileObj | FolderObj)[];
 
 	constructor(path: string) {
@@ -26,11 +25,30 @@ class FolderObj extends FSEntry {
 		});
 	}
 
-	findSubfolder(subfolderName: string): FolderObj {
+	get files() {
+		console.log("files under", this.name, this.content);
+		return this.content.filter((entry) => {
+			return entry.type === "file";
+		}) as FileObj[];
+	}
+
+	get fileNames() {
+		return this.files.map((file) => file.name);
+	}
+
+	get subfolders() {
+		return this.content.filter((entry) => {
+			return entry.type === "folder";
+		}) as FolderObj[];
+	}
+
+	get subfolderNames() {
+		return this.subfolders.map((folder) => folder.name);
+	}
+
+	subfolder(subfolderName: string): FolderObj {
 		return (
-			(this.content.find((entry) => {
-				return entry.type === "folder" && entry.name === subfolderName;
-			}) as FolderObj) || null
+			this.subfolders.find((folder) => folder.name === subfolderName) || null
 		);
 	}
 }

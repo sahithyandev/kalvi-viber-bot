@@ -2,6 +2,7 @@ import * as ngrok from "./getPublicUrls";
 import * as utils from "./utils";
 import * as helpers from "./helpers";
 import * as models from "./models";
+import { PublicContentType, PublicGrade } from "./types";
 
 console.log("started");
 
@@ -36,22 +37,26 @@ const bot = new ViberBot({
 		"https://static.botsrv2.com/website/img/quriobot_favicon.1727b193.png",
 });
 
-async function sendPdfMessage(filename = "quantum.pdf") {
+async function sendPdfMessage(fileLocation: string) {
 	async function getPdfSize(filename) {
 		const fs = require("fs/promises");
 		let file;
 		try {
 			file = await fs.open(filename, "r");
+
 			const stat = await file.stat();
-			return stat.size;
-		} catch {
-		} finally {
 			await file.close();
+
+			return stat.size;
+		} catch (err) {
+			console.log("ERR", err);
 		}
 	}
 
-	const fileLocation = `public/${filename}`;
 	const fileSize = await getPdfSize(fileLocation);
+	const filename = fileLocation.split("/").reverse()[0];
+
+	console.log("pdf", { hostUrl, fileLocation, filename, fileSize });
 
 	return new viberBotPackage.Message.File(
 		`${hostUrl}/${fileLocation}`,
@@ -64,12 +69,6 @@ const folderStructure = new models.FolderObj("public");
 console.log("folderStructure loaded");
 
 bot.onTextMessage(/^!start$/i, (message, response) => {
-	const AVAILABLE_CONTENT_TYPES = folderStructure.content
-		.filter((entry) => {
-			return entry.type === "folder";
-		})
-		.map((folder) => folder.name);
-
 	response.send([
 		new viberBotPackage.Message.Text("What type of content do you want?"),
 		new viberBotPackage.Message.Keyboard(
@@ -78,9 +77,9 @@ bot.onTextMessage(/^!start$/i, (message, response) => {
 					width: 2,
 					height: 1,
 				},
-				buttons: AVAILABLE_CONTENT_TYPES.map((contentType) => ({
-					text: utils.capitalize(contentType),
+				buttons: folderStructure.subfolderNames.map((contentType) => ({
 					action: `!type ${contentType}`,
+					text: utils.dashedToNormal(contentType),
 				})),
 			})
 		),
@@ -100,17 +99,16 @@ const listeners: ListenerObj[] = [
 	{
 		messageRoute: /!type (?<type>\w+)/i,
 		messageListener: async (message, response, messageRegexMatched) => {
-			const type = messageRegexMatched.groups.type;
-			if (type === "education") {
-				const EDUCATION_FOLDER = folderStructure.content.find((s) => {
-					return s.type === "folder" && s.name === "education";
-				}) as models.FolderObj;
+			const type: PublicContentType = messageRegexMatched.groups
+				.type as PublicContentType;
 
-				const AVAILABLE_GRADES = EDUCATION_FOLDER.content
-					.filter((entry) => entry.type === "folder")
+			if (["papers", "teachers-guides"].includes(type)) {
+				const AVAILABLE_GRADES = folderStructure
+					.subfolder(type)
+					.content.filter((entry) => entry.type === "folder")
 					.map((folder) => {
 						return folder.name;
-					});
+					}) as PublicGrade[];
 
 				response.send([
 					new viberBotPackage.Message.Text("Select the grade you want"),
@@ -122,7 +120,7 @@ const listeners: ListenerObj[] = [
 							},
 							buttons: AVAILABLE_GRADES.map((grade) => {
 								return {
-									action: `!grade ${grade}`,
+									action: `!${type} ${grade}`,
 									text: `Grade ${grade}`,
 								};
 							}),
@@ -133,36 +131,33 @@ const listeners: ListenerObj[] = [
 		},
 	},
 	{
-		messageRoute: /!grade (?<grade>\d+)/i,
+		// type papers
+		// response to the selected grade -> show available subjects
+		messageRoute: /!papers (?<grade>\w+)/i,
 		messageListener: async (message, response, messageRegexMatched) => {
-			const grade = parseInt(messageRegexMatched.groups.grade);
-			const subjects = (() => {
-				const subjectFolders = folderStructure
-					.findSubfolder("education")
-					.findSubfolder(grade.toString())
-					.content.filter(
-						(entry) => entry.type === "folder"
-					) as models.FolderObj[];
+			const grade: PublicGrade = messageRegexMatched.groups
+				.grade as PublicGrade;
 
-				return subjectFolders.map((subjectFolder) => {
-					return new models.Subject(subjectFolder.name);
-				});
-			})();
+			console.log("grade-selected", messageRegexMatched.groups);
 
-			console.log(subjects);
+			// available subjects
+			const availableSubjects = folderStructure
+				.subfolder("papers")
+				.subfolder(grade).subfolderNames;
 
+			// show subjects
 			response.send([
-				new viberBotPackage.Message.Text("Select a subject"),
+				new viberBotPackage.Message.Text("Select the subject you want"),
 				new viberBotPackage.Message.Keyboard(
 					helpers.viberKeyboardOptions({
 						buttonSize: {
 							width: 2,
 							height: 1,
 						},
-						buttons: subjects.map((subject) => {
+						buttons: availableSubjects.map((subject) => {
 							return {
-								action: `!subject ${grade}-${subject.name}`,
-								text: subject.displayName,
+								text: new models.Subject(subject).displayName,
+								action: `!papers_${grade} ${subject}`,
 							};
 						}),
 					})
@@ -171,12 +166,114 @@ const listeners: ListenerObj[] = [
 		},
 	},
 	{
-		messageRoute: /!subject (?<grade>\d+)-(?<subject>[\w-]+)/i,
+		messageRoute: /!papers_(?<grade>\d+) (?<subject>\w+)/i,
 		messageListener: async (message, response, messageRegexMatched) => {
-			console.log("sub", messageRegexMatched);
-			const { grade, subject: subjectName } = messageRegexMatched.groups;
-			const subject = new models.Subject(subjectName);
-			// TODO
+			const { grade, subject } = messageRegexMatched.groups;
+			console.log("subject selected", messageRegexMatched.groups);
+
+			// show available paper types
+			const availablePaperTypes = folderStructure
+				.subfolder("papers")
+				.subfolder(grade)
+				.subfolder(subject).subfolderNames;
+
+			response.send([
+				new viberBotPackage.Message.Text("What kind of papers do you want?"),
+				new viberBotPackage.Message.Keyboard(
+					helpers.viberKeyboardOptions({
+						buttonSize: {
+							width: 6,
+							height: 1,
+						},
+						buttons: availablePaperTypes.map((paperType) => {
+							return {
+								action: `!papers_${grade}_${subject} ${paperType}`,
+								text: utils.dashedToNormal(paperType),
+							};
+						}),
+					})
+				),
+			]);
+		},
+	},
+	{
+		messageRoute:
+			/!papers_(?<grade>\d+)_(?<subject>\w+) (?<paperType>[\w\-]+)/i,
+		messageListener: async (message, response, messageRegexMatched) => {
+			const { grade, subject, paperType } = messageRegexMatched.groups;
+
+			console.log("paper-type-selected", messageRegexMatched.groups);
+
+			const availablePapers = folderStructure
+				.subfolder("papers")
+				.subfolder(grade)
+				.subfolder(subject)
+				.subfolder(paperType).files;
+
+			response.send([
+				new viberBotPackage.Message.Text("Select one"),
+				new viberBotPackage.Message.Keyboard(
+					helpers.viberKeyboardOptions({
+						buttonSize: {
+							width: 6,
+							height: 1,
+						},
+						buttons: availablePapers.map((paper) => ({
+							action: `!file ${paper.path}`,
+							text: paper.name,
+						})),
+					})
+				),
+			]);
+		},
+	},
+	{
+		messageRoute: /!file (?<fileName>[\w\/\-\.]+)/i,
+		messageListener: async (message, response, messageRegexMatched) => {
+			const fileName = messageRegexMatched.groups.fileName;
+			console.log("file download", fileName);
+			const s = await sendPdfMessage(fileName);
+
+			console.log(s);
+			response.send([new viberBotPackage.Message.Text("Here"), s]);
+		},
+	},
+	{
+		messageRoute: /!teachers-guide (?<grade>\w+)/i,
+		messageListener: async (message, response, messageRegexMatched) => {
+			const grade = messageRegexMatched.groups.grade as PublicGrade;
+
+			// show the available files
+			const availableFiles = folderStructure
+				.subfolder("teachers-guides")
+				.subfolder(grade).fileNames;
+
+			response.send([
+				new viberBotPackage.Message.Text("Select the subject you want"),
+				new viberBotPackage.Message.Keyboard(
+					helpers.viberKeyboardOptions({
+						buttonSize: {
+							width: 6,
+							height: 1,
+						},
+						buttons: availableFiles.map((subjectFile) => ({
+							text: subjectFile,
+							action: `!teachers-guide_${grade} ${subjectFile}`,
+						})),
+					})
+				),
+			]);
+		},
+	},
+	{
+		messageRoute: /!teachers-guide_(?<grade>\w+) (?<subject>\w+)/i,
+		messageListener: async (message, response, messageRegexMatched) => {
+			const { grade, subject } = messageRegexMatched.groups;
+
+			response.send([
+				new viberBotPackage.Message.Text("Here is the file"),
+				sendPdfMessage(`teachers-guide/${grade}/${subject}.pdf`),
+			]);
 		},
 	},
 ];
